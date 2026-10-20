@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.0 — 2026-10-20
+
+- Multi-material prints: the command is inserted for every filament that becomes active, so
+  each tool change switches the spool before that filament prints. Previously only the first
+  bound filament got a command, and it could land on a different filament's start block.
+
 ## 1.0.1 — 2026-10-20
 
 - Screenshots in the README: the Spoolman tab, the slicing-pipeline setting, and the result in

@@ -6,7 +6,7 @@
 # name = "MAD-Spoolman"
 # description = "Links filament presets to Spoolman spools and writes the active spool macro into the G-code before printing."
 # author = "MarkovDA"
-# version = "1.0.1"
+# version = "1.1.0"
 # type = "slicing-pipeline"
 # ///
 """Bind OrcaSlicer filament presets to Spoolman spools.
@@ -32,7 +32,7 @@ import orca
 # Read by the Orca Cloud publisher; OrcaSlicer derives the plugin type from the
 # registered capabilities and ignores these constants.
 PLUGIN_NAME = "MAD-Spoolman"
-PLUGIN_VERSION = "1.0.1"
+PLUGIN_VERSION = "1.1.0"
 PLUGIN_TYPE = "slicing-pipeline"
 
 BUNDLE_ID = "mad-spoolman"
@@ -403,32 +403,78 @@ def macro_line(settings, spool_id):
     return settings["macro"].replace("{id}", str(spool_id))
 
 
-def inject_macro(path, line):
+TOOL_CHANGE_RE = re.compile(r"^T(\d+)\s*(?:;.*)?$")
+
+
+def inject_spool_commands(path, names, settings, bindings):
+    """Insert the macro for every filament that becomes active in this G-code.
+
+    A tool change (`T0`, `T1`, ...) or the start of the first filament marks the
+    moment a new filament starts printing; the command goes right after it, so the
+    printer switches the Spoolman spool before that filament extrudes anything.
+    Returns the list of (filament name, spool id) that were inserted.
+    """
     # newline="" keeps the file's original line endings intact.
     with open(path, encoding="utf-8", errors="surrogateescape", newline="") as fh:
-        text = fh.read()
-    if MARK_BEGIN in text or line in text:
+        lines = fh.read().splitlines(keepends=True)
+    if any(MARK_BEGIN in line for line in lines):
         log(f"{os.path.basename(path)} already carries the command")
-        return False
-    lines = text.splitlines(keepends=True)
-    position = None
-    for index, value in enumerate(lines):
-        if value.strip() == "; filament start gcode":
-            position = index + 1
-            break
-    if position is None:
-        for index, value in enumerate(lines):
-            if value.startswith(";LAYER_CHANGE"):
-                position = index
+        return []
+
+    def command_for(tool):
+        if tool < 0 or tool >= len(names):
+            return None
+        record = bindings.get(names[tool])
+        if record is None:
+            return None
+        return macro_line(settings, record["spool_id"]), names[tool]
+
+    def block(command):
+        return f"{MARK_BEGIN}\n{command}\n{MARK_END}\n"
+
+    out = []
+    inserted = []
+    tool = 0
+    tool_changed = False
+    first_filament_done = False
+    for line in lines:
+        out.append(line)
+        stripped = line.strip()
+        if stripped == "; filament start gcode" and not first_filament_done and not tool_changed:
+            found = command_for(tool)
+            if found:
+                out.append(block(found[0]))
+                inserted.append((found[1], found[0]))
+            first_filament_done = True
+            continue
+        match = TOOL_CHANGE_RE.match(stripped)
+        if match:
+            tool = int(match.group(1))
+            tool_changed = True
+            found = command_for(tool)
+            if found:
+                out.append(block(found[0]))
+                inserted.append((found[1], found[0]))
+
+    if not inserted:
+        # No filament start marker and no tool changes: put the first filament's
+        # command just before the first layer.
+        for index, line in enumerate(lines):
+            if line.startswith(";LAYER_CHANGE"):
+                found = command_for(0)
+                if found:
+                    out.insert(index, block(found[0]))
+                    inserted.append((found[1], found[0]))
                 break
-    if position is None:
-        log(f"no insertion point found in {os.path.basename(path)}")
-        return False
-    lines.insert(position, f"{MARK_BEGIN}\n{line}\n{MARK_END}\n")
-    with open(path, "w", encoding="utf-8", errors="surrogateescape", newline="") as fh:
-        fh.write("".join(lines))
-    log(f"inserted into {os.path.basename(path)} at line {position + 1}: {line}")
-    return True
+
+    if inserted:
+        with open(path, "w", encoding="utf-8", errors="surrogateescape", newline="") as fh:
+            fh.write("".join(out))
+        for name, command in inserted:
+            log(f"inserted into {os.path.basename(path)} for {name!r}: {command}")
+    else:
+        log(f"nothing to insert into {os.path.basename(path)}")
+    return inserted
 
 
 def filament_names_from_ctx(ctx):
@@ -739,16 +785,11 @@ class SpoolmanGCode(orca.slicing.SlicingPipelineCapabilityBase):
             names = filament_names_from_ctx(ctx)
             bindings = load_map()
             log(f"post-process {os.path.basename(path)}, filaments: {names}")
-            for name in names:
-                record = bindings.get(name)
-                if record is None:
-                    log(f"no binding for {name!r}")
-                    continue
-                line = macro_line(settings, record["spool_id"])
-                if inject_macro(path, line):
-                    return orca.ExecutionResult.success(f"G-code updated: {line}")
-                return orca.ExecutionResult.success()
-            return orca.ExecutionResult.skipped("no spool bound to the active filament")
+            inserted = inject_spool_commands(path, names, settings, bindings)
+            if not inserted:
+                return orca.ExecutionResult.skipped("no spool bound to the active filaments")
+            summary = ", ".join(f"{name}: {command.split('ID=')[-1]}" for name, command in inserted)
+            return orca.ExecutionResult.success(f"G-code updated ({summary})")
         except Exception as exc:  # noqa: BLE001
             log(f"post-process failed: {type(exc).__name__}: {exc}")
             return orca.ExecutionResult.failure(

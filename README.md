@@ -21,7 +21,8 @@ spools and writes the active spool command into the G-code before a filament is 
   ```
 
   The block goes right after the `; filament start gcode` marker, so the printer receives it
-  before the first layer of that filament.
+  before the first layer of that filament. On multi-material prints every filament that becomes
+  active gets its own command at the matching tool change.
 
 ## Screenshots
 
@@ -87,6 +88,9 @@ address you configure.
 
 - **Nothing appears in the G-code.** Check that `Spoolman G-code` is selected in the process
   preset (see above) and that the filament preset used for the slice has a bound spool.
+- **Multi-material prints.** Each filament is matched to the tool that prints it (`T0`, `T1`, ...);
+  a filament without a bound spool gets no command. Custom AMS-style change G-code is not parsed,
+  because the plugin targets printers driven by plain tool changes.
 - **`PermissionError` in the log.** Network access was not granted; reopen the tab and allow it.
 - **Spoolman is not reachable.** The check button reports the error. Make sure the address
   includes the port and that Spoolman allows CORS-free API access from localhost (it does by
