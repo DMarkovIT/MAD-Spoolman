@@ -23,6 +23,21 @@ spools and writes the active spool command into the G-code before a filament is 
   The block goes right after the `; filament start gcode` marker, so the printer receives it
   before the first layer of that filament.
 
+## Screenshots
+
+**Spoolman tab** — every filament preset with a spool picker, material and remaining weight:
+
+![Spoolman tab](docs/spoolman-tab.png)
+
+**Enabling the G-code step** — process settings → Others → Slicing Pipeline Plugin:
+
+![Process settings](docs/process-settings.png)
+
+**Result in the exported G-code** — the command sits between the filament start marker and the
+pressure advance override:
+
+![G-code output](docs/gcode-output.png)
+
 ## Requirements
 
 - OrcaSlicer 2.5.0 or newer (the Python plugin system).
