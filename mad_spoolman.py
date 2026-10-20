@@ -7,6 +7,7 @@
 # description = "Links filament presets to Spoolman spools and writes the active spool macro into the G-code before printing."
 # author = "MarkovDA"
 # version = "1.0.0"
+# type = "slicing-pipeline"
 # ///
 """Bind OrcaSlicer filament presets to Spoolman spools.
 
@@ -27,6 +28,12 @@ import time
 import urllib.request
 
 import orca
+
+# Read by the Orca Cloud publisher; OrcaSlicer derives the plugin type from the
+# registered capabilities and ignores these constants.
+PLUGIN_NAME = "MAD-Spoolman"
+PLUGIN_VERSION = "1.0.0"
+PLUGIN_TYPE = "slicing-pipeline"
 
 BUNDLE_ID = "mad-spoolman"
 BUNDLE_NAME = "Spoolman"
