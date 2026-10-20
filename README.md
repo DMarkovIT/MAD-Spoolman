@@ -49,7 +49,7 @@ pressure advance override:
 
 ## Installation
 
-1. Download `mad_spoolman.py` from the latest release (or use Orca Cloud once the plugin is
+1. Download `mad_spoolman_any.py` from the latest release (or use Orca Cloud once the plugin is
    published there).
 2. In OrcaSlicer open **File → Plugins**, click **Install local plugin** and choose the file.
 3. Activate the plugin and open the **Spoolman** tab.
@@ -94,6 +94,23 @@ address you configure.
 
 The plugin writes diagnostics to OrcaSlicer's Python log:
 `<OrcaSlicer data folder>/log/python_*.log`.
+
+## Development
+
+The plugin is a single file, `mad_spoolman_any.py`. The `_any` suffix is required by the
+Orca Cloud publisher: uploaded plugin files must name their target platform, and `any` marks a
+platform-independent plugin.
+
+### Releases
+
+Releases are published automatically. The workflow in
+`.github/workflows/publish-orcacloud.yml` uploads the plugin file to Orca Cloud on every
+published GitHub release, using GitHub OIDC — there are no tokens to store.
+
+1. Bump `version` in the plugin metadata and in `PLUGIN_VERSION`, update `CHANGELOG.md`.
+2. Create a release with a semantic-version tag, for example `v1.0.1`. The tag must be higher
+   than the version currently published on Orca Cloud.
+3. Publish the release. The release notes become the changelog on Orca Cloud.
 
 ## License
 
